@@ -1,4 +1,4 @@
-"""Slack bot that answers questions about Google Sheets data using Claude."""
+"""Slack bot that answers questions about Google Sheets data."""
 
 import json
 import os
@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env.local")
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-import anthropic
+import litellm
 from slack_bolt import App, Assistant
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from .sheets import SheetsClient
 
-# --- Tool definitions for Claude ---
+# --- Framing ---
 
 PROJECT_ROOT = Path(__file__).parent.parent
 FRAMING_PATH = Path(os.environ.get("FRAMING_PATH", str(PROJECT_ROOT / "FRAMING.md")))
@@ -53,85 +53,97 @@ def _update_framing(content: str) -> dict:
     return {"status": "ok", "path": str(FRAMING_PATH), "length": len(content)}
 
 
-# --- Tool definitions for Claude ---
+# --- Tool definitions (OpenAI function calling format) ---
 
 TOOLS = [
     {
-        "name": "search",
-        "description": "Free-text search across all columns. Returns matching rows with _tab indicating source tab.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Text to search for (case-insensitive, matches any column)",
+        "type": "function",
+        "function": {
+            "name": "search",
+            "description": "Free-text search across all columns. Returns matching rows with _tab indicating source tab.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Text to search for (case-insensitive, matches any column)",
+                    },
+                    "tab": {
+                        "type": "string",
+                        "description": "Tab name to search in. Omit to search all tabs.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max rows to return (default 50)",
+                    },
                 },
-                "tab": {
-                    "type": "string",
-                    "description": "Tab name to search in (e.g. 'Raw'). Omit to search all tabs.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max rows to return (default 50)",
-                },
+                "required": ["query"],
             },
-            "required": ["query"],
         },
     },
     {
-        "name": "query",
-        "description": "Structured query with filters, amount range, date range, and sorting.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tab": {
-                    "type": "string",
-                    "description": "Tab name to query. Defaults to first tab.",
+        "type": "function",
+        "function": {
+            "name": "query",
+            "description": "Structured query with filters, amount range, date range, and sorting.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tab": {
+                        "type": "string",
+                        "description": "Tab name to query. Defaults to first tab.",
+                    },
+                    "filters": {
+                        "type": "object",
+                        "description": 'Column name -> substring match (e.g. {"Name": "Acme"})',
+                        "additionalProperties": {"type": "string"},
+                    },
+                    "amount_column": {
+                        "type": "string",
+                        "description": "Column containing amounts to filter on",
+                    },
+                    "min_amount": {"type": "number", "description": "Minimum amount"},
+                    "max_amount": {"type": "number", "description": "Maximum amount"},
+                    "date_column": {
+                        "type": "string",
+                        "description": "Column containing dates to filter on",
+                    },
+                    "date_from": {"type": "string", "description": "Start date (YYYY-MM-DD)"},
+                    "date_to": {"type": "string", "description": "End date (YYYY-MM-DD)"},
+                    "sort_by": {"type": "string", "description": "Column to sort by"},
+                    "sort_desc": {
+                        "type": "boolean",
+                        "description": "Sort descending (default true)",
+                    },
+                    "limit": {"type": "integer", "description": "Max rows (default 50)"},
                 },
-                "filters": {
-                    "type": "object",
-                    "description": "Column name -> substring match (e.g. {\"Name\": \"Acme\"})",
-                    "additionalProperties": {"type": "string"},
-                },
-                "amount_column": {
-                    "type": "string",
-                    "description": "Column containing amounts to filter on",
-                },
-                "min_amount": {"type": "number", "description": "Minimum amount"},
-                "max_amount": {"type": "number", "description": "Maximum amount"},
-                "date_column": {
-                    "type": "string",
-                    "description": "Column containing dates to filter on",
-                },
-                "date_from": {"type": "string", "description": "Start date (YYYY-MM-DD)"},
-                "date_to": {"type": "string", "description": "End date (YYYY-MM-DD)"},
-                "sort_by": {"type": "string", "description": "Column to sort by"},
-                "sort_desc": {
-                    "type": "boolean",
-                    "description": "Sort descending (default true)",
-                },
-                "limit": {"type": "integer", "description": "Max rows (default 50)"},
+                "required": [],
             },
-            "required": [],
         },
     },
     {
-        "name": "get_framing",
-        "description": "Get the current bot framing/persona markdown. Read this before making updates.",
-        "input_schema": {"type": "object", "properties": {}, "required": []},
+        "type": "function",
+        "function": {
+            "name": "get_framing",
+            "description": "Get the current bot framing/persona markdown. Read this before making updates.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
     },
     {
-        "name": "update_framing",
-        "description": "Update the bot's framing/persona markdown. This changes how the bot behaves and what context it has. Always read the current framing first with get_framing, then write the complete updated content.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "The complete new markdown content for the framing file",
+        "type": "function",
+        "function": {
+            "name": "update_framing",
+            "description": "Update the bot's framing/persona markdown. This changes how the bot behaves and what context it has. Always read the current framing first with get_framing, then write the complete updated content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The complete new markdown content for the framing file",
+                    },
                 },
+                "required": ["content"],
             },
-            "required": ["content"],
         },
     },
 ]
@@ -150,13 +162,7 @@ def execute_tool(name: str, inputs: dict, sheets: SheetsClient) -> dict:
         return {"error": f"Unknown tool: {name}"}
 
 
-# --- Status messages ---
-
-
-
-# --- Claude integration ---
-
-claude = anthropic.Anthropic()
+# --- LLM integration ---
 
 BOT_INSTRUCTIONS = (
     "Use the provided tools to look up data. The spreadsheet schema is included below "
@@ -177,6 +183,8 @@ BOT_INSTRUCTIONS = (
     "read the current framing first, then write the updated version."
 )
 
+DEFAULT_MODEL = "anthropic/claude-haiku-4-5-20251001"
+
 
 def _build_system_prompt(schema: dict) -> str:
     """Build system prompt from framing file + bot instructions + pre-loaded schema."""
@@ -188,63 +196,48 @@ def _build_system_prompt(schema: dict) -> str:
     )
 
 
-def ask_claude(question: str, sheets: SheetsClient, schema: dict, history: list[dict] | None = None) -> dict:
-    """Returns {"answer": str, "followups": list[str]}.
-
-    Args:
-        question: The user's question.
-        sheets: SheetsClient instance.
-        schema: Pre-loaded spreadsheet schema dict.
-        history: Optional conversation history as Claude-format messages
-    """
+def ask_llm(question: str, sheets: SheetsClient, schema: dict, history: list[dict] | None = None) -> dict:
+    """Returns {"answer": str, "followups": list[str]}."""
     if history:
         messages = history + [{"role": "user", "content": question}]
     else:
         messages = [{"role": "user", "content": question}]
-    model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    model = os.environ.get("MODEL", DEFAULT_MODEL)
     system_prompt = _build_system_prompt(schema)
 
+    # Prepend system message
+    all_messages = [{"role": "system", "content": system_prompt}] + messages
+
     for _ in range(5):
-        response = claude.messages.create(
+        response = litellm.completion(
             model=model,
             max_tokens=1024,
-            system=[
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
             tools=TOOLS,
-            messages=messages,
+            messages=all_messages,
         )
 
-        if response.stop_reason != "tool_use":
-            raw = "".join(
-                block.text for block in response.content if block.type == "text"
+        choice = response.choices[0]
+        if choice.finish_reason != "tool_calls":
+            return _parse_response(choice.message.content or "")
+
+        # Handle tool calls
+        all_messages.append(choice.message)
+        for tool_call in choice.message.tool_calls:
+            args = json.loads(tool_call.function.arguments)
+            result = execute_tool(tool_call.function.name, args, sheets)
+            all_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result),
+                }
             )
-            return _parse_response(raw)
-
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                result = execute_tool(block.name, block.input, sheets)
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    }
-                )
-
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_results})
 
     return {"answer": "Sorry, I couldn't resolve your question after several attempts.", "followups": []}
 
 
 def _parse_response(raw: str) -> dict:
-    """Extract answer text and followup questions from Claude's response."""
+    """Extract answer text and followup questions from the response."""
     followups = []
     match = re.search(r"```followups\s*\n(.+?)\n```", raw, re.DOTALL)
     if match:
@@ -259,7 +252,7 @@ def _parse_response(raw: str) -> dict:
 
 
 def _get_thread_history(client, channel: str, thread_ts: str) -> list[dict]:
-    """Fetch thread messages and convert to Claude message format.
+    """Fetch thread messages and convert to message format.
 
     Excludes the latest user message (that's passed separately as the question).
     Strips the followups JSON blocks from bot responses.
@@ -271,7 +264,6 @@ def _get_thread_history(client, channel: str, thread_ts: str) -> list[dict]:
         return []
 
     history = []
-    # Get bot user ID to identify bot messages
     bot_user_id = None
     try:
         auth = client.auth_test()
@@ -354,7 +346,7 @@ def main():
         history = _get_thread_history(client, channel, thread_ts)
 
         try:
-            result = ask_claude(question, sheets_client, schema, history=history)
+            result = ask_llm(question, sheets_client, schema, history=history)
             # Use plain text blocks (no action buttons) — DMs use set_suggested_prompts instead
             answer_blocks = _build_blocks({"answer": result["answer"], "followups": []})
             client.chat_update(
@@ -410,7 +402,7 @@ def main():
             )
         return blocks
 
-    # Also handle @mentions in channels for backwards compat
+    # Also handle @mentions in channels
     @app.event("app_mention")
     def handle_mention(event, client):
         text = re.sub(r"<@[A-Z0-9]+>\s*", "", event.get("text", "")).strip()
@@ -430,7 +422,7 @@ def main():
         )
 
         try:
-            result = ask_claude(text, sheets_client, schema)
+            result = ask_llm(text, sheets_client, schema)
             client.chat_update(
                 channel=event["channel"],
                 ts=placeholder["ts"],
@@ -482,7 +474,7 @@ def main():
 
         try:
             history = _get_thread_history(client, event["channel"], event["thread_ts"])
-            result = ask_claude(text, sheets_client, schema, history=history)
+            result = ask_llm(text, sheets_client, schema, history=history)
             client.chat_update(
                 channel=event["channel"],
                 ts=placeholder["ts"],
@@ -511,7 +503,7 @@ def main():
 
         try:
             history = _get_thread_history(client, channel, thread_ts)
-            result = ask_claude(question, sheets_client, schema, history=history)
+            result = ask_llm(question, sheets_client, schema, history=history)
             client.chat_update(
                 channel=channel,
                 ts=placeholder["ts"],

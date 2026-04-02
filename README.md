@@ -38,7 +38,9 @@ For the Slack bot, you also need:
 
 - `SLACK_BOT_TOKEN` — bot token (`xoxb-...`)
 - `SLACK_APP_TOKEN` — app-level token for Socket Mode (`xapp-...`)
-- `ANTHROPIC_API_KEY` — your Anthropic API key
+- An API key for your LLM provider (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+
+The bot uses [litellm](https://docs.litellm.ai/docs/providers) so it works with any LLM provider. Set the `MODEL` env var to switch models (default: `anthropic/claude-haiku-4-5-20251001`). Examples: `openai/gpt-4o`, `gemini/gemini-2.0-flash`.
 
 ### 4. Install dependencies
 
