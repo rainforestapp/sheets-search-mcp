@@ -1,11 +1,11 @@
 # Sheets Search MCP
 
-Make any Google Sheet queryable from Slack or Claude Code. Connect a spreadsheet, customize the bot's persona, and let Claude answer questions about your data.
+Make any Google Sheet queryable from Slack or any MCP client. Connect a spreadsheet, pick your LLM, customize the bot's persona, and let your team ask questions about the data.
 
 Works in two modes:
 
-- **Slack bot** — an AI assistant your team can DM or @mention in channels to ask questions about the spreadsheet
-- **MCP server** — tools for Claude Code to query, search, and filter spreadsheet data directly
+- **Slack bot** — an AI assistant your team can DM or @mention in channels to ask questions about the spreadsheet. Works with any LLM (OpenAI, Anthropic, Google, etc.)
+- **MCP server** — tools for any MCP-compatible client (Claude Code, Cursor, etc.) to query, search, and filter spreadsheet data directly
 
 ## Setup
 
@@ -64,9 +64,9 @@ The bot works in DMs (via Slack's Assistant API) and in channels (via @mentions)
 
 Edit `FRAMING.md` to describe your data, define terminology, and set behavioral guidelines. The bot uses this as its system prompt. See the template for examples.
 
-### MCP server (Claude Code)
+### MCP server
 
-The `.mcp.json` is already configured. Restart Claude Code in this project directory and the tools will be available:
+The `.mcp.json` is already configured for Claude Code. For other MCP clients, point them at `sheets_search_mcp.server`. Available tools:
 
 - **get_sheet_schema** — view columns and sample data
 - **query_sheet** — structured filters (column match, amount range, date range, sort)
