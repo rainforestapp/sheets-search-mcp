@@ -1,10 +1,15 @@
 # Sheets Search MCP
 
-MCP server that makes a Google Sheet queryable from Claude.
+Make any Google Sheet queryable from Slack or Claude Code. Connect a spreadsheet, customize the bot's persona, and let Claude answer questions about your data.
+
+Works in two modes:
+
+- **Slack bot** — an AI assistant your team can DM or @mention in channels to ask questions about the spreadsheet
+- **MCP server** — tools for Claude Code to query, search, and filter spreadsheet data directly
 
 ## Setup
 
-### 1. Create a Service Account
+### 1. Create a Google Service Account
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Select your project (or create one)
@@ -19,13 +24,45 @@ MCP server that makes a Google Sheet queryable from Claude.
 
 Copy the service account email (looks like `sheets-mcp@your-project.iam.gserviceaccount.com`) and share your Google Sheet with it (Viewer access is sufficient).
 
-### 3. Install dependencies
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in your values. At minimum you need:
+
+- `SHEETS_SPREADSHEET_URL` — full URL of your Google Sheet
+
+For the Slack bot, you also need:
+
+- `SLACK_BOT_TOKEN` — bot token (`xoxb-...`)
+- `SLACK_APP_TOKEN` — app-level token for Socket Mode (`xapp-...`)
+- `ANTHROPIC_API_KEY` — your Anthropic API key
+
+### 4. Install dependencies
 
 ```bash
 uv sync
 ```
 
-### 4. Use with Claude Code
+## Usage
+
+### Slack bot
+
+```bash
+uv run python -m sheets_search_mcp.bot
+```
+
+The bot works in DMs (via Slack's Assistant API) and in channels (via @mentions). It supports:
+
+- Threaded conversations with context
+- Follow-up question buttons
+- Customizable persona via `FRAMING.md` or the `BOT_FRAMING` env var
+
+Edit `FRAMING.md` to describe your data, define terminology, and set behavioral guidelines. The bot uses this as its system prompt. See the template for examples.
+
+### MCP server (Claude Code)
 
 The `.mcp.json` is already configured. Restart Claude Code in this project directory and the tools will be available:
 
@@ -34,8 +71,10 @@ The `.mcp.json` is already configured. Restart Claude Code in this project direc
 - **search_sheet** — free-text search across all columns
 - **refresh_data** — re-fetch data if the sheet was updated
 
+### Deploy to Render
+
+A `render.yaml` blueprint and `Dockerfile` are included. Set your env vars in the Render dashboard — use `GOOGLE_SERVICE_ACCOUNT_JSON` (raw JSON string) instead of a key file.
+
 ## Configuration
 
-Set `SHEETS_SPREADSHEET_URL` env var to point to your sheet (required). See `.env.example` for all options.
-
-Set `GOOGLE_SERVICE_ACCOUNT_PATH` env var to use a key file in a different location.
+See `.env.example` for all available options including model selection, framing path, and service account configuration.
