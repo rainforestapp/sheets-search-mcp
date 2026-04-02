@@ -46,13 +46,6 @@ def _get_framing() -> str:
     return _framing_cache
 
 
-def _update_framing(content: str) -> dict:
-    """Write new framing content to FRAMING.md and reload cache."""
-    FRAMING_PATH.write_text(content)
-    _load_framing()
-    return {"status": "ok", "path": str(FRAMING_PATH), "length": len(content)}
-
-
 # --- Tool definitions (OpenAI function calling format) ---
 
 TOOLS = [
@@ -121,31 +114,6 @@ TOOLS = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_framing",
-            "description": "Get the current bot framing/persona markdown. Read this before making updates.",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_framing",
-            "description": "Update the bot's framing/persona markdown. This changes how the bot behaves and what context it has. Always read the current framing first with get_framing, then write the complete updated content.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": "The complete new markdown content for the framing file",
-                    },
-                },
-                "required": ["content"],
-            },
-        },
-    },
 ]
 
 
@@ -154,10 +122,6 @@ def execute_tool(name: str, inputs: dict, sheets: SheetsClient) -> dict:
         return sheets.search(**inputs)
     elif name == "query":
         return sheets.query(**inputs)
-    elif name == "get_framing":
-        return {"content": _get_framing()}
-    elif name == "update_framing":
-        return _update_framing(inputs["content"])
     else:
         return {"error": f"Unknown tool: {name}"}
 
@@ -177,10 +141,7 @@ BOT_INSTRUCTIONS = (
     '["question 1", "question 2", "question 3"]\n'
     "```\n"
     "These should be 2-3 short follow-up questions to dig deeper into the data. "
-    "Do NOT include a 'Want to dig deeper?' header — just end with the JSON block.\n\n"
-    "You can view and update your own framing/persona using the get_framing and "
-    "update_framing tools. When asked to change how you behave or what context you have, "
-    "read the current framing first, then write the updated version."
+    "Do NOT include a 'Want to dig deeper?' header — just end with the JSON block."
 )
 
 DEFAULT_MODEL = "anthropic/claude-haiku-4-5-20251001"
@@ -366,7 +327,7 @@ def main():
             client.chat_update(
                 channel=channel,
                 ts=placeholder["ts"],
-                text=f"Something went wrong: {e}",
+                text="Something went wrong. Please try again.",
             )
 
     def _build_blocks(result: dict) -> list[dict]:
@@ -433,7 +394,7 @@ def main():
             client.chat_update(
                 channel=event["channel"],
                 ts=placeholder["ts"],
-                text=f"Something went wrong: {e}",
+                text="Something went wrong. Please try again.",
             )
 
     @app.event("message")
@@ -485,7 +446,7 @@ def main():
             client.chat_update(
                 channel=event["channel"],
                 ts=placeholder["ts"],
-                text=f"Something went wrong: {e}",
+                text="Something went wrong. Please try again.",
             )
 
     @app.action(re.compile(r"^followup_\d+$"))
@@ -514,7 +475,7 @@ def main():
             client.chat_update(
                 channel=channel,
                 ts=placeholder["ts"],
-                text=f"Something went wrong: {e}",
+                text="Something went wrong. Please try again.",
             )
 
     # Register assistant middleware AFTER channel event handlers so it doesn't swallow them
