@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.DS_Store
+
+# Secrets - NEVER commit
+service-account.json
+credentials.json
+.env*
+!.env.example
+
+# Leftover clone
+sheets search/

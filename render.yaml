@@ -1,0 +1,18 @@
+services:
+  - type: worker
+    name: sheets-slack-bot
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SHEETS_SPREADSHEET_URL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: BOT_FRAMING
+        sync: false
