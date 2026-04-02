@@ -30,12 +30,12 @@ uv sync
 The `.mcp.json` is already configured. Restart Claude Code in this project directory and the tools will be available:
 
 - **get_sheet_schema** — view columns and sample data
-- **query_spend** — structured filters (column match, amount range, date range, sort)
-- **search_spend** — free-text search across all columns
+- **query_sheet** — structured filters (column match, amount range, date range, sort)
+- **search_sheet** — free-text search across all columns
 - **refresh_data** — re-fetch data if the sheet was updated
 
 ## Configuration
 
-Set `SHEETS_SPREADSHEET_URL` env var to point to a different sheet, or edit `server.py`.
+Set `SHEETS_SPREADSHEET_URL` env var to point to your sheet (required). See `.env.example` for all options.
 
 Set `GOOGLE_SERVICE_ACCOUNT_PATH` env var to use a key file in a different location.
