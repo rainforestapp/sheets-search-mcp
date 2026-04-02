@@ -107,3 +107,9 @@ uv run python -m sheets_search_mcp.server
 ## Configuration
 
 See `.env.example` for all available options including model selection, framing path, and service account configuration.
+
+## Security notes
+
+- **Schema includes sample data.** The first 3 rows of each tab are sent to the LLM as part of the system prompt so it understands your data structure. Make sure those rows don't contain sensitive information.
+- **Framing content is sent to the LLM.** Everything in `FRAMING.md` or `BOT_FRAMING` is included in every request. Don't put secrets or confidential information in there.
+- **Spreadsheet URL is not validated.** Only use trusted Google Sheets URLs in `SHEETS_SPREADSHEET_URL`.

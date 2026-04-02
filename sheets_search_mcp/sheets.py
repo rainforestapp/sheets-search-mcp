@@ -10,6 +10,11 @@ from .auth import get_credentials
 
 class SheetsClient:
     def __init__(self, spreadsheet_url: str):
+        if not spreadsheet_url.startswith("https://docs.google.com/spreadsheets/"):
+            raise ValueError(
+                "SHEETS_SPREADSHEET_URL must be a Google Sheets URL "
+                "(https://docs.google.com/spreadsheets/...)"
+            )
         self.spreadsheet_url = spreadsheet_url
         self._tabs: dict[str, TabData] = {}
         self._loaded = False
