@@ -8,7 +8,7 @@ dependencies = [
     "gspread>=6.0.0",
     "google-api-python-client>=2.0.0",
     "slack-bolt>=1.18.0",
-    "litellm>=1.83.0",
+    "litellm>=1.83.7",
     "python-dotenv>=1.0.0",
 ]
 
